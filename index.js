@@ -22,34 +22,33 @@ class User {
   }
 
   play(casinoName, money) {
-    if (this.money >= money) {
-      const casino = casinosStorage[casinoName];
-
-      if (casino) {
-        const selectedMachine      = casino.machines.find(machine => money * 3 <= machine.getMoney); // money*3 - Перевіряєм чи хватить грошей на максимальний куш.
-        const selectedMachineIndex = casino.machines.indexOf(selectedMachine);
+    const casino = casinosStorage[casinoName];
     
-        if (selectedMachine) {
-          console.info(`Ви граєте за автоматом №${selectedMachineIndex} в казино ${casinoName}!`);
-          
-          this.money -= money;
-    
-          const wonMoney = selectedMachine.play(money);
-    
-          if (wonMoney > 0) {
-            this.money += wonMoney;
-          }
-          
-        } else {
-          console.log("Немає жодного робочого автомата (закінчились гроші), спробуйте зробити меншу ставку!")
-        }
-      } else {
-        console.error("Казино з такою назвою вже не існує!")
-      }
-
-    } else {
-      console.error("У вас недостатньо грошей для гри!")
+    if (!casino) {
+      return console.error("Казино з такою назвою не існує!");
     }
+    
+    if (this.money < money) {
+      return console.error("У вас недостатньо грошей для гри!");
+    }
+
+    const selectedMachine      = casino.machines.find(machine => money * 3 <= machine.getMoney); // money*3 - Перевіряєм чи хватить грошей на максимальний куш.
+    const selectedMachineIndex = casino.machines.indexOf(selectedMachine);
+
+    if (!selectedMachine) {
+      return console.log("Немає жодного робочого автомата (закінчились гроші), спробуйте зробити меншу ставку!")
+    }
+
+    console.info(`Ви граєте за автоматом №${selectedMachineIndex} в казино ${casinoName}!`);
+    
+    this.money -= money;
+
+    const wonMoney = selectedMachine.play(money);
+
+    if (wonMoney > 0) {
+      this.money += wonMoney;
+    }
+
   }
 }
 
@@ -61,142 +60,139 @@ class SuperAdmin extends User {
   }
 
   createCasino(name) {
-    if (!Object.keys(casinosStorage).includes(name)) {
-      return this.casinos[name] = casinosStorage[name] = new Casino(name);
-    } else {
-      console.error("Казино з такою назвою вже існує!")
+    if (Object.keys(casinosStorage).includes(name)) {
+      return console.error("Казино з такою назвою вже існує!")
     }
+
+    return this.casinos[name] = casinosStorage[name] = new Casino(name);
   }
 
   createMachine(casinoName, initialMoney) {
-    if (isPositive(initialMoney)) {
-      if (initialMoney <= this.money) { // Перевірка, щоб грошей у Адміна не стало менше 0
-        const casino = this.casinos[casinoName];
+    const casino = this.casinos[casinoName];
 
-        if (casino) {
-          this.money -= initialMoney;
-          casino.addGameMachine(initialMoney);
-        } else {
-          console.error(`У Адміна ${this.name} Казино з такою назвою не існує!`)
-        }
-
-      } else {
-        console.error("Введена сумма перевищує Вашу кількість грошей!")
-      }
-    } else {
-      console.error(`Помилка! Кількість грошей, які ви хочете покласти в автомат, менше нуля!`)
+    if (!casino) {
+      return console.error(`У Адміна ${this.name} Казино з такою назвою не існує!`);
     }
+
+    if (!isPositive(initialMoney)) {
+      return console.error(`Помилка! Кількість грошей, які ви хочете покласти в автомат, менше нуля!`);
+    }
+
+    if (initialMoney > this.money) {
+      return console.error("Введена сумма перевищує Вашу кількість грошей!");
+    }
+
+    this.money -= initialMoney;
+    
+    casino.addGameMachine(initialMoney);
   }
 
   removeMachine(casinoName, machineIndex) {
     const casino = this.casinos[casinoName];
 
-    if (casino) {
-      if (casino.machines[machineIndex]) {
-        const removedMachine = casino.removeGameMachine(machineIndex)[0];
-  
-        this.money += removedMachine.getMoney;
-        this.putMoneyInCasino(casinoName, removedMachine.getMoney);
-  
-        console.log(`Автомат з індексом ${machineIndex} було видалено, і його гроші (${removedMachine.getMoney}), були розприділені між усіма автоматами.`)
-      } else {
-        console.error(`Автомату з індексом ${machineIndex} не існує!`)
-      }
-    } else {
-      console.error(`У Адміна ${this.name} Казино з такою назвою не існує!`)
+    if (!casino) {
+      return console.error(`У Адміна ${this.name} Казино з такою назвою не існує!`);
     }
+
+    if (!casino.machines[machineIndex]) {
+      return console.error(`Автомату з індексом ${machineIndex} не існує!`); 
+    }
+
+    const removedMachine = casino.removeGameMachine(machineIndex)[0];
+
+    this.money += removedMachine.getMoney;
+    this.putMoneyInCasino(casinoName, removedMachine.getMoney);
+
+    console.log(`Автомат з індексом ${machineIndex} було видалено, і його гроші (${removedMachine.getMoney}), були розприділені між усіма автоматами.`)
+    
   }
 
-  takeMoneyFromCasino(casinoName, number) { 
-    if (isPositive(number)) {
-      const casino = this.casinos[casinoName];
-      
-      if (casino) {
-        const casinoMoney = casino.getMoney;
+  takeMoneyFromCasino(casinoName, number) {
+    const casino = this.casinos[casinoName];
     
-        if (casinoMoney >= number ) {
-          const sortedMachines = casino.machines.slice().sort((a, b) => b.getMoney - a.getMoney);
-          // Використовую slice для того щоб зробити копію массиву, тому що sort буде міняти порядок і в оригінальному массиві.
-          // Якшо це станеться, то автомати поміняють свій порядок.
-          
-          let collectedMoney = 0;
-      
-          for (const machine of sortedMachines) {
-            if (collectedMoney >= number) break;  // ">=" замість "===" на випадок втрати точності, але наврядчи вона тут буде
-      
-            const collectedMoneyFromMachine = Math.min(machine.getMoney, number - collectedMoney);
-            // Якщо в автоматі багато грошей, але нам потрібно взяти тільки частину
-    
-            machine.takeMoney(collectedMoneyFromMachine);
-            collectedMoney += collectedMoneyFromMachine;
-          }
-      
-          this.money += collectedMoney;
-          
-          console.log(`Ви успішно зняли з рахунку казино ${collectedMoney}!`);
-          console.log("");
-
-          return collectedMoney;
-    
-        } else {
-          console.error(`В казино ${casinoName} недостатньо коштів! Не вистачає ${number - casinoMoney}!`)
-        }
-
-      } else {
-        console.error(`У Адміна ${this.name} Казино з такою назвою не існує!`)
-      }
-    } else {
-      console.error(`Помилка! Кількість грошей, які ви хочете взяти менше нуля!`)
+    if (!casino) {
+      return console.error(`У Адміна ${this.name} Казино з такою назвою не існує!`);
     }
+
+    if (!isPositive(number)) {
+      return console.error(`Помилка! Кількість грошей, які ви хочете взяти менше нуля!`);
+    }
+
+    if (casino.getMoney < number) {
+      return console.error(`В казино ${casinoName} недостатньо коштів! Не вистачає ${number - casino.getMoney}!`)
+    }
+
+    const sortedMachines = casino.machines.slice().sort((a, b) => b.getMoney - a.getMoney);
+    // Використовую slice для того щоб зробити копію массиву, тому що sort буде міняти порядок і в оригінальному массиві.
+    // Якшо це станеться, то автомати поміняють свій порядок.
+    
+    let collectedMoney = 0;
+
+    for (const machine of sortedMachines) {
+      if (collectedMoney >= number) break;  // ">=" замість "===" на випадок втрати точності, але наврядчи вона тут буде
+
+      const collectedMoneyFromMachine = Math.min(machine.getMoney, number - collectedMoney);
+      // Якщо в автоматі багато грошей, але нам потрібно взяти тільки частину
+
+      machine.takeMoney(collectedMoneyFromMachine);
+      collectedMoney += collectedMoneyFromMachine;
+    }
+
+    this.money += collectedMoney;
+    
+    console.log(`Ви успішно зняли з рахунку казино ${collectedMoney}!`);
+    console.log("");
+
+    return collectedMoney;
   }
 
   putMoneyInCasino(casinoName, number) {
     // В таску не було вказано як саме покласти гроші на рахунок казино, тому я їх розприділив порівну між усіма автоматами в казино (принцип як при видаленні автомата)
+    const casino = this.casinos[casinoName];
 
-    if (isPositive(number)) {
-      if (this.money >= number) {
-        const casino   = this.casinos[casinoName];
-
-        if (casino) {
-          const moneyForMachine = number / casino.machineCount;
-    
-          for (const machine of casino.machines) {
-            machine.putMoney(moneyForMachine);
-          }
-          
-        } else {
-          console.error(`У Адміна ${this.name} Казино з такою назвою не існує!`)
-        }
-        
-        this.money -= number;
-
-      } else {
-        console.error("Помилка! Кількість грошей, які ви хочете покласти перевищує кількість грошей на вашому рахунку!")
-      }
-    } else {
-      console.error(`Помилка! Кількість грошей, які ви хочете покласти менше нуля!`)
+    if (!casino) {
+      return console.error(`У Адміна ${this.name} Казино з такою назвою не існує!`);
     }
+
+    if (!isPositive(number)) {
+      return console.error(`Помилка! Кількість грошей, які ви хочете покласти менше нуля!`)
+    }
+
+    if (this.money < number) {
+      return console.error("Помилка! Кількість грошей, які ви хочете покласти перевищує кількість грошей на вашому рахунку!")  
+    }
+
+    const moneyForMachine = number / casino.machineCount;
+
+    for (const machine of casino.machines) {
+      machine.putMoney(moneyForMachine);
+    }
+        
+    this.money -= number;
   }
 
   putMoneyInMachine(casinoName, machineIndex, number) {
-    if (isPositive(number)) {
-      if (this.money >= number) {
-        const casino = this.casinos[casinoName];
-        
-        if (casino.machines[machineIndex]) {
-          this.money -= number;
-          
-          return casino.machines[machineIndex].putMoney(number);
-        } else {
-          console.error(`Помилка! Автомат з індексом №${machineIndex} не існує!`)
-        }
+    const casino = this.casinos[casinoName];
 
-      } else {
-        console.error("Помилка! Кількість грошей, які ви хочете покласти в автомат перевищує кількість грошей на вашому рахунку!")
-      }
-    } else {
-      console.error(`Помилка! Кількість грошей, які ви хочете покласти в автомат, менше нуля!`)
+    if (!casino) {
+      return console.error(`У Адміна ${this.name} Казино з такою назвою не існує!`)
     }
+    
+    if (!casino.machines[machineIndex]) {
+      return console.error(`Помилка! Автомат з індексом №${machineIndex} не існує!`)
+    }
+
+    if (!isPositive(number)) {
+      return console.error(`Помилка! Кількість грошей, які ви хочете покласти в автомат, менше нуля!`)
+    }
+
+    if (this.money < number) {
+      return console.error("Помилка! Кількість грошей, які ви хочете покласти в автомат перевищує кількість грошей на вашому рахунку!")
+    }
+
+    this.money -= number;
+    
+    return casino.machines[machineIndex].putMoney(number);
   }
 }
 
@@ -210,30 +206,25 @@ class GameMachine {
   }
 
   takeMoney(number) {
-    // Також як варіант (#оптимізація), щоб дотримуватись більше плоскої структури, і не вкладати багато if 
-    // if (!isPositive(number)) 
-    //   return console.error(`Помилка! Кількість грошей, які ви хочете взяти з автомату, менше нуля!`);
-    
-    if (isPositive(number)) {
-      if (this._money >= number) {
-        this._money -= number;
-
-        console.log(`З GameMachine було знято ${number}! Залишок ${this._money}!`)
-      } else {
-        console.error(`В автоматі недостатньо коштів! Не вистачає ${number - this._money}!`)
-      }
-    } else {
-      console.error(`Помилка! Кількість грошей, які ви хочете взяти з автомату, менше нуля!`)
+    if (!isPositive(number)) {
+      return console.error(`Помилка! Кількість грошей, які ви хочете взяти з автомату, менше нуля!`)
     }
+
+    if (this._money < number) {
+      return console.error(`В автоматі недостатньо коштів! Не вистачає ${number - this._money}!`)
+    }
+
+    this._money -= number;
+    console.log(`З GameMachine було знято ${number}! Залишок ${this._money}!`)
   }
 
   putMoney(number) {
-    if (isPositive(number)) {
-      this._money += number;
-      console.log(`Успішно покладено ${number} грошей в GameMachine! Баланс ${this._money}`)
-    } else {
-      console.error(`Помилка! Кількість грошей, які ви хочете покласти менше нуля!`)
+    if (!isPositive(number)) {
+      return console.error(`Помилка! Кількість грошей, які ви хочете покласти менше нуля!`);
     }
+
+    this._money += number;
+    console.log(`Успішно покладено ${number} грошей в GameMachine! Баланс ${this._money}`);
   }
 
   play(number) {
@@ -286,12 +277,11 @@ class Casino {
   }
 
   removeGameMachine(machineIndex) {
-    if (this._machines[machineIndex]) {
-      return this._machines.splice(machineIndex, 1);
-    } else {
-      console.error(`Автомату з індексом ${machineIndex} не існує!`)
+    if (!this._machines[machineIndex]) {
+      return console.error(`Автомату з індексом ${machineIndex} не існує!`);
     }
-    
+
+    return this._machines.splice(machineIndex, 1);
   }
 
   get getMoney() {
@@ -331,7 +321,7 @@ userJohn.play("Dragon's", 100)
 userJohn.play("Dragon's", 1050)
 userJohn.play("Triada's", 1550)
 
-// adminAndrew.putMoneyInCasino("Dragon's",22500)
+// adminAndrew.putMoneyInCasino("Dragon's", 22500)
 
 // adminAndrew.removeMachine("Triada's", 1) // У Адміна Andrew Казино з такою назвою не існує!
 
